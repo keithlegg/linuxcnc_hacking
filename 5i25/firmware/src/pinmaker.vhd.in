@@ -1,0 +1,109 @@
+library IEEE;
+use std.textio.all;
+use IEEE.std_logic_1164.all;  -- defines std_logic types
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.STD_LOGIC_TEXTIO.ALL;
+
+use work.IDROMConst.all;
+use work.PIN_@PIN@.all;
+use work.@CARD@.all;
+use work.idrom_tools.all;
+
+entity pinmaker_@PIN@ is
+
+function GetPinDesc(i: integer) return PinDescRecord is
+    variable pr : PinDescRecord;
+    variable pv : std_logic_vector(31 downto 0);
+begin
+    return MakePinRecord(PinDesc(i));
+end function;
+
+function Clock(idx : std_logic_vector(7 downto 0)) return integer is
+    variable m: integer;
+begin
+    if(idx = ClockHighTag) then m := ClockHigh;
+    else m := ClockLow;
+    end if;
+    return (m + 500000)/1000000;
+end;
+
+end pinmaker_@PIN@;
+
+architecture bbb of pinmaker_@PIN@ is
+    file output_file : TEXT open write_mode is in "@OUT@";
+begin
+    process
+        variable so: line;
+        variable i: integer;
+        variable mr : ModuleRecord;
+        variable pr : PinDescRecord;
+    begin
+	write(so, string'("Modules in configuration:"));
+	writeline(output_file, so);
+
+	write(so,
+            string'("  #         Tag  Ver  Clock  Cnt Regs Stride Mult Base"));
+	writeline(output_file, so);
+
+        for i in 0 to MaxModules-1 loop
+            mr := ModuleId(i);
+	    if(mr.GTag = NullTag) then
+		exit;
+	    end if;
+	
+	    write(so, ' ', RIGHT, 1);
+            write(so, i, RIGHT, 2);
+            write(so, TagToName(mr.GTag), RIGHT, 12);
+            write(so, ' ', RIGHT, 1);
+            write(so, conv_integer(mr.Version), RIGHT, 4);
+            write(so, ' ', RIGHT, 1);
+            write(so, Clock(mr.Clock), RIGHT, 3);
+            write(so, string'("MHz"), RIGHT, 3);
+            write(so, ' ', RIGHT, 1);
+            write(so, conv_integer(mr.NumInstances), RIGHT, 4);
+            write(so, ' ', RIGHT, 1);
+            write(so, conv_integer(mr.NumRegisters), RIGHT, 4);
+            write(so, ' ', RIGHT, 1);
+            write(so, conv_integer(mr.Strides), RIGHT, 6);
+            write(so, ' ', RIGHT, 1);
+            write(so, conv_integer(signed(mr.MultRegs)), RIGHT, 4);
+            write(so, ' ', RIGHT, 1);
+            write(so, string'("0x"));
+            hwrite(so, mr.BaseAddr, RIGHT, 4);
+            writeline(output_file, so);
+        end loop;
+	writeline(output_file, so);
+
+
+	for i in 0 to IOWidth-1 loop
+            if((i mod PortWidth) = 0) then
+                writeline(output_file, so);
+                write(so, string'("PIN   IO# Module         Chan Func"));
+                writeline(output_file, so);
+            end if;
+            pr := GetPinDesc(i);
+            write(so, Conn(BoardNameLow, BoardNameHigh, i, PortWidth));
+            write(so, string'("-"));
+            write(so, conv_integer(i) mod 24*2+1, LEFT, 2);
+            write(so, ' ', RIGHT, 1);
+            write(so, i, RIGHT, 3);
+	    if(pr.SecFunc /= NullTag) then
+                write(so, ' ', RIGHT, 1);
+                write(so, TagToName(pr.SecFunc), LEFT, 14);
+                write(so, ' ', RIGHT, 1);
+                if((pr.SecInst and x"80") /= 0) then
+                    write(so, string'("ALL "));
+                else
+                    write(so, conv_integer(pr.SecInst), RIGHT, 4);
+                end if;
+                write(so, ' ', RIGHT, 1);
+                write(so, Funct(pr.SecFunc, pr.SecPin), RIGHT, 4);
+            end if;
+            writeline(output_file, so);
+	end loop;
+
+	wait;
+    end process;
+end bbb;
+

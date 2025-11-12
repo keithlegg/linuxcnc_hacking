@@ -1,0 +1,105 @@
+#!/usr/bin/python
+# coding=utf-8
+#    build hostmot2 firmwares
+#    Copyright © 2009 Jeff Epler <jepler@unpythonic.net>
+#
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation; either version 2 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program; if not, write to the Free Software
+#    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+import os
+import sys
+
+sys.path.insert(0,
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.normpath(__file__))),
+        'scripts'))
+import cards
+
+path_compat = {
+    'i43_200': '7i43/*S.BIT',
+    'i43_400': '7i43/*B.BIT',
+    'i22_1000': '5i22/*S.BIT',
+    'i22_1500': '5i22/*B.BIT',
+}
+
+# this one turns *off* all the actual firmware packages, but does not turn off the "-all" package
+only_build_all_deb = False
+
+# this one turns *on* the "-all" package
+build_all_deb = True
+
+if len(sys.argv) > 1:
+    if sys.argv[1] == '--all-only':
+        only_build_all_deb = True
+
+    if sys.argv[1] == '--no-all':
+        build_all_deb = False
+
+all_cards = []
+for line in open("firmwares.txt"):
+    line = line.strip()
+    if not line or line.startswith("#"): continue
+    line = line.split()
+    card = line[0]
+    if card not in all_cards: all_cards.append(card)
+
+if not only_build_all_deb:
+    for card in all_cards:
+        card = cards.get_card(card)
+        p = card.path
+        f = open("debian/hostmot2-firmware-%s.install" % p, "w")
+        f.write("/lib/firmware/hm2/%s/*.BIT\n" % p)
+        f.write("/lib/firmware/hm2/%s/*.xml\n" % p)
+        c = path_compat.get(card, None)
+        if c:
+            f.write("lib/firmware/hm2/%s\n" % c)
+        f = open("debian/hostmot2-firmware-%s.docs" % p, "w")
+        f.write("fw/%s/*.PIN\n" % p)
+
+f = open("debian/control", "w")
+f.write("""\
+Source: hostmot2-firmware
+Section: misc
+Priority: extra
+Build-Depends: debhelper
+Maintainer: Jeff Epler <jepler@unpythonic.net>
+
+""")
+
+if build_all_deb:
+    f.write("""\
+Package: hostmot2-firmware-all
+Architecture: all
+Depends: %s
+Description: Meta-package to install all hostmot2 firmwares
+ This is an empty package that depends on all the separately packaged
+ firmware images used by EMC2.  If your configuration does not need
+ any firmware, you can safely remove this package.  If you know which
+ specific hostmot2-firmware-* package you need, you can remove this package
+ and install just the one you need.
+
+""" % ", ".join("hostmot2-firmware-%s" % cards.get_card(card).path for card in all_cards))
+
+if not only_build_all_deb:
+    for card in all_cards:
+        card = cards.get_card(card)
+        f.write("""\
+Package: hostmot2-firmware-%(card)s
+Enhances: linuxcnc, linuxcnc-uspace
+Architecture: all
+Description: HostMot2 firmware images for %(cardname)s
+ This package contains HostMot2 firmware images for the %(cardname)s
+ "Anything I/O" board.  If you don't use a %(cardname)s you can safely
+ remove this package.
+
+""" % {'oldcard': card.path.split("-")[0], 'card': card.path, 'cardname': card.humanname})

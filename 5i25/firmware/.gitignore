@@ -1,0 +1,11 @@
+/firmwares.mk
+/firmwares-local.mk
+/firmwares-local.txt
+/fw
+/dist
+/debian/control
+/debian/*.files
+/debian/files
+/debian/hostmot2-firmware-*
+/debian/tmp
+*.py[co]

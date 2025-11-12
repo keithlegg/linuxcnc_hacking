@@ -1,0 +1,12 @@
+#!/bin/bash
+if [ -f VERSION ]; then exec cat VERSION; fi
+
+desc () {
+    if ! test -d .git ; then
+        echo 'not git'
+    else
+        git describe --dirty
+    fi
+}
+
+desc | sed s/^v//

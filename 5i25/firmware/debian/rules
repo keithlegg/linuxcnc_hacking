@@ -1,0 +1,40 @@
+#!/usr/bin/make -f
+
+
+build:
+	$(MAKE) $(MAKEFLAGS)
+
+install: build
+	dh $@
+
+override_dh_install:
+	mkdir -p debian/tmp/lib/firmware/hm2
+	(cd fw; find -name "*.BIT" -or -name "*.xml" | cpio -o) \
+		| (cd debian/tmp/lib/firmware/hm2; cpio -i --make-directories)
+	while read a b; do \
+		if [ -f debian/tmp/lib/firmware/hm2/$$a ]; then \
+			( \
+				cd debian/tmp/lib/firmware/hm2; \
+				mkdir -p `dirname $$b`; \
+				ln -sf ../$$a $$b; \
+			); \
+                fi; \
+	done < debian/compat_symlinks
+	dh_install
+
+override_dh_installdocs:
+	dh_installdocs -A README.md src/regmap
+
+binary: binary-indep
+binary-indep: install debian/control
+	dh $@
+
+debian/control: debian/gencontrol firmwares.txt
+	debian/gencontrol
+
+clean:
+	dh $@
+	rm -rf fw firmwares.mk
+
+.PHONY: check-xst build binary binary-indep clean
+# vim:sw=8:sts=8:ts=8:noet
